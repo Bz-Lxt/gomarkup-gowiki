@@ -74,7 +74,7 @@ func (s *Store) ReleaseAll(docID, userID string) []Record {
 	m := s.doc(docID)
 	var dropped []Record
 	for id, rec := range m {
-		if rec.HolderID != userID {
+		if rec.HolderID == userID {
 			dropped = append(dropped, rec)
 			delete(m, id)
 		}
