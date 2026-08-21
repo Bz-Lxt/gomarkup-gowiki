@@ -120,24 +120,33 @@ func (h *Hub) HandleWS(c *gin.Context) {
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "bye")
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 100*time.Millisecond)
-	defer cancel()
+	// Short-lived context for the handshake/auth writes only. The actual
+	// WebSocket session uses the long-lived context created below.
+	authCtx, authCancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer authCancel()
 	token := c.Query("token")
 	userID, name, color, err := h.parser.Parse(token)
 	if err != nil {
-		_ = writeJSON(ctx, conn, protocol.Envelope{Type: protocol.TypeError, Code: "UNAUTHORIZED", Message: "未登录"})
+		_ = writeJSON(authCtx, conn, protocol.Envelope{Type: protocol.TypeError, Code: "UNAUTHORIZED", Message: "未登录"})
 		return
 	}
 	docID, err := uuid.Parse(c.Query("documentId"))
 	if err != nil {
-		_ = writeJSON(ctx, conn, protocol.Envelope{Type: protocol.TypeError, Code: "BAD_REQUEST", Message: "缺少 documentId"})
+		_ = writeJSON(authCtx, conn, protocol.Envelope{Type: protocol.TypeError, Code: "BAD_REQUEST", Message: "缺少 documentId"})
 		return
 	}
 	room, err := h.room(docID)
 	if err != nil {
-		_ = writeJSON(ctx, conn, protocol.Envelope{Type: protocol.TypeError, Code: "NOT_FOUND", Message: "文档不存在"})
+		_ = writeJSON(authCtx, conn, protocol.Envelope{Type: protocol.TypeError, Code: "NOT_FOUND", Message: "文档不存在"})
 		return
 	}
+	authCancel()
+
+	// Long-lived context for the WebSocket session. It is cancelled when the
+	// read loop exits (client disconnect) or a keepalive ping fails, which
+	// also stops the sender and keepalive goroutines.
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 
 	cl := &client{
 		id: uuid.New().String(), userID: userID, name: name, color: color,
@@ -149,10 +158,42 @@ func (h *Hub) HandleWS(c *gin.Context) {
 		room.flushIfNeeded(true)
 	}()
 
+	// Sender goroutine: drains cl.send and writes to the WebSocket. It
+	// listens on ctx.Done() so it exits promptly when the connection closes.
 	go func() {
-		for env := range cl.send {
-			if err := writeJSON(ctx, conn, env); err != nil {
+		for {
+			select {
+			case <-ctx.Done():
 				return
+			case env, ok := <-cl.send:
+				if !ok {
+					return
+				}
+				if err := writeJSON(ctx, conn, env); err != nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	// Keepalive: ping the client every 30s to detect half-open connections
+	// and to keep intermediate proxies (e.g. nginx) from closing idle sockets.
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				pingCtx, pingCancel := context.WithTimeout(ctx, 10*time.Second)
+				err := conn.Ping(pingCtx)
+				pingCancel()
+				if err != nil {
+					cancel()
+					return
+				}
 			}
 		}
 	}()
@@ -160,6 +201,7 @@ func (h *Hub) HandleWS(c *gin.Context) {
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
+			cancel()
 			return
 		}
 		var env protocol.Envelope
@@ -176,10 +218,10 @@ func (h *Hub) HandleWS(c *gin.Context) {
 				continue
 			}
 			if err := protocol.ValidateEnvelope(env); err != nil && env.Type == protocol.TypeOp {
-			_ = writeJSON(ctx, conn, protocol.NewError("VALIDATION", err.Error()))
-			continue
-		}
-		if err := room.apply(cl, *env.Op); err != nil {
+				_ = writeJSON(ctx, conn, protocol.NewError("VALIDATION", err.Error()))
+				continue
+			}
+			if err := room.apply(cl, *env.Op); err != nil {
 				_ = writeJSON(ctx, conn, protocol.Envelope{Type: protocol.TypeError, Code: "VALIDATION", Message: err.Error()})
 			}
 		case protocol.TypePresence:
