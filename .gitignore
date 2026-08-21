@@ -1,0 +1,47 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/backend/gowiki
+/backend/bin/
+*.test
+*.out
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build
+dist/
+dist-ssr/
+*.local
+frontend-user/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+uploads/
+bleve-index/
+*.bleve/
+backend/data/
+
+# Test / coverage
+coverage.out
+coverage.html
+playwright-report/
+test-results/
+.pytest_cache/
+
+# Alkaid local marker (keep in repo for this project)
+# .alkaid-sop
