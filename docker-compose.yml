@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
+      POSTGRES_USER: gowiki
+      POSTGRES_PASSWORD: gowiki
+      POSTGRES_DB: gowiki
+    command: ["postgres", "-c", "timezone=Asia/Shanghai"]
+    ports:
+      - "27123:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gowiki -d gowiki"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      GOWIKI_HTTP_ADDR: ":8080"
+      GOWIKI_ENV: production
+      GOWIKI_LOG_LEVEL: info
+      GOWIKI_DATABASE_DSN: postgres://gowiki:gowiki@postgres:5432/gowiki?sslmode=disable
+      GOWIKI_JWT_SECRET: gowiki-dev-secret-change-me
+      GOWIKI_UPLOAD_DIR: /data/uploads
+      GOWIKI_BLEVE_PATH: /data/bleve
+      GOWIKI_SEARCH_ANALYZER: gse
+    ports:
+      - "27122:8080"
+    volumes:
+      - uploads:/data/uploads
+      - bleve:/data/bleve
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 8s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "27121:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 8s
+      timeout: 3s
+      retries: 8
+    restart: unless-stopped
+
+  qa:
+    image: python:3.12-alpine
+    environment:
+      TZ: Asia/Shanghai
+      GOWIKI_API: http://web/api/v1
+    volumes:
+      - ./tests:/tests:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    working_dir: /tests
+    command: ["python", "api_smoke.py"]
+    profiles: ["qa"]
+
+volumes:
+  pgdata:
+  uploads:
+  bleve:

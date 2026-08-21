@@ -1,0 +1,14 @@
+.git
+**/.git
+**/node_modules
+**/dist
+**/.DS_Store
+backend/data
+uploads
+bleve-index
+docs
+frontend-admin
+frontend-mp
+tests
+*.md
+!frontend-user/package.json
