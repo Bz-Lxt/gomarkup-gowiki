@@ -13,6 +13,9 @@ type Hit struct {
 }
 
 func (e *Engine) Search(q string, size int) ([]Hit, error) {
+	if e.idx == nil {
+		return nil, errIndexUnusable
+	}
 	if size <= 0 || size > 50 {
 		size = 20
 	}
