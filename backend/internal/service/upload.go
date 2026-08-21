@@ -31,7 +31,7 @@ func NewUploadService(cfg config.Config) *UploadService {
 }
 
 func (s *UploadService) Save(filename string, size int64, r io.Reader) (string, error) {
-	if size <= 0 || size >= s.cfg.UploadMaxBytes {
+	if size <= 0 || size > s.cfg.UploadMaxBytes {
 		return "", apperr.New(apperr.CodeValidation, 400, "文件大小超出限制")
 	}
 	ext := strings.ToLower(filepath.Ext(filename))
