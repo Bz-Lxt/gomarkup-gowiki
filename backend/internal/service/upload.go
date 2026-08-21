@@ -23,14 +23,12 @@ var allowedExt = map[string]string{
 }
 
 type UploadService struct {
-	cfg     config.Config
-	copyBuf []byte
+	cfg config.Config
 }
 
 func NewUploadService(cfg config.Config) *UploadService {
 	return &UploadService{
-		cfg:     cfg,
-		copyBuf: make([]byte, 32*1024),
+		cfg: cfg,
 	}
 }
 
@@ -52,7 +50,14 @@ func (s *UploadService) Save(filename string, size int64, r io.Reader) (string, 
 		return "", err
 	}
 	defer f.Close()
-	if _, err := io.CopyBuffer(struct{ io.Writer }{f}, r, s.copyBuf); err != nil {
+	// Use io.Copy instead of io.CopyBuffer with a shared buffer. The old
+	// code passed a single shared []byte (s.copyBuf) to every concurrent
+	// request, so two uploads racing on the same buffer caused one
+	// request's bytes to overwrite the other's in-flight data, producing
+	// the observed "cross-talk" where the downloaded file content did not
+	// match the originally uploaded PNG. io.Copy allocates a private
+	// per-call buffer, eliminating the shared-state data race.
+	if _, err := io.Copy(f, r); err != nil {
 		return "", err
 	}
 	return "/uploads/" + name, nil
