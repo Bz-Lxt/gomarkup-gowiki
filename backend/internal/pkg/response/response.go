@@ -1,6 +1,7 @@
 package response
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -35,7 +36,8 @@ func Created(c *gin.Context, data interface{}) {
 }
 
 func Fail(c *gin.Context, err error) {
-	if ae, ok := err.(*apperr.Error); ok {
+	var ae *apperr.Error
+	if errors.As(err, &ae) {
 		c.JSON(ae.HTTP, Body{
 			Code:      string(ae.Code),
 			Message:   ae.Message,
