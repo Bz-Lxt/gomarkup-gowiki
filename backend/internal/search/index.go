@@ -50,7 +50,6 @@ func Open(path, analyzer string) (*Engine, error) {
 func openOrCreate(path, analyzer string) (bleve.Index, error) {
 	idx, err := bleve.Open(path)
 	if err == nil {
-		defer idx.Close()
 		return idx, nil
 	}
 	if err != bleve.ErrorIndexPathDoesNotExist && !isBrokenIndex(path, err) {
