@@ -1,6 +1,7 @@
 package search
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,9 +54,8 @@ func openOrCreate(path, analyzer string) (bleve.Index, error) {
 	if err == nil {
 		return idx, nil
 	}
-	err = fmt.Errorf("open index: %w", err)
-	if err != bleve.ErrorIndexPathDoesNotExist && !isBrokenIndex(path, err) {
-		return nil, err
+	if !errors.Is(err, bleve.ErrorIndexPathDoesNotExist) && !isBrokenIndex(path, err) {
+		return nil, fmt.Errorf("open index: %w", err)
 	}
 	if isBrokenIndex(path, err) {
 		_ = os.RemoveAll(path)
