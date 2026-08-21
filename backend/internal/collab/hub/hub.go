@@ -138,13 +138,22 @@ func (h *Hub) HandleWS(c *gin.Context) {
 		return
 	}
 
-	nextSite := h.sites.Load() + 1
+	// Atomically reserve a globally-unique site id. The previous code did
+	// h.sites.Load()+1 followed by h.sites.Store() as two separate atomic
+	// ops; between them it called room.add(cl) (which takes the room mutex,
+	// builds a snapshot and broadcasts presence), opening a wide window in
+	// which two concurrent joins read the same counter, compute the same
+	// nextSite, and join with identical site ids. Both clients then start
+	// from the same initial snapshot/clock, so their first ops collide on
+	// (site, clock) and the CRDT's idempotency map silently drops one side
+	// — exactly the reported "beta" content loss. Add(1) is a single atomic
+	// read-modify-write, so every join observes a distinct value.
+	nextSite := h.sites.Add(1)
 	cl := &client{
 		id: uuid.New().String(), userID: userID, name: name, color: color,
 		site: nextSite, send: make(chan protocol.Envelope, 32),
 	}
 	room.add(cl)
-	h.sites.Store(nextSite)
 	defer func() {
 		room.remove(cl.id)
 		room.flushIfNeeded(true)
