@@ -9,13 +9,14 @@ import (
 	"gorm.io/gorm/logger"
 
 	"gowiki/internal/model"
+	"gowiki/internal/pkg/timeutil"
 )
 
 func Open(dsn string) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 		NowFunc: func() time.Time {
-			return time.Now().In(time.FixedZone("CST", 8*3600))
+			return time.Now().In(timeutil.Beijing)
 		},
 	})
 	if err != nil {

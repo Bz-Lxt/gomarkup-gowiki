@@ -16,6 +16,12 @@ func Format(t time.Time) string {
 	return t.In(Beijing).Format("2006-01-02 15:04:05")
 }
 
+// Parse is the inverse of Format: it interprets the naive wall-clock string
+// as Beijing time, so that Format(t) -> Parse -> t preserves the instant.
+// An empty string (the Format output of the zero time) yields the zero time.
 func Parse(s string) (time.Time, error) {
-	return time.Parse("2006-01-02 15:04:05", s)
+	if s == "" {
+		return time.Time{}, nil
+	}
+	return time.ParseInLocation("2006-01-02 15:04:05", s, Beijing)
 }

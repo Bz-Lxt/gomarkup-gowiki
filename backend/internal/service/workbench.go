@@ -58,7 +58,7 @@ func (s *WorkbenchService) Home(userID uuid.UUID) (*Workbench, error) {
 		Activities: make([]ActivityItem, 0, len(acts)),
 	}
 	for _, r := range recents {
-		if item, ok := s.item(r.DocumentID, r.ViewedAt.Format("2006-01-02 15:04:05")); ok {
+		if item, ok := s.item(r.DocumentID, timeutil.Format(r.ViewedAt)); ok {
 			out.Recents = append(out.Recents, item)
 		}
 	}
