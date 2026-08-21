@@ -269,7 +269,7 @@ func (d *Doc) LoadSnapshot(s Snapshot) {
 	d.seen = map[ID]struct{}{StartID: {}}
 	d.pending = nil
 	for i := range s.Atoms {
-		a := &s.Atoms[i]
+		a := &Atom{ID: s.Atoms[i].ID, After: s.Atoms[i].After, Value: s.Atoms[i].Value, Deleted: s.Atoms[i].Deleted}
 		d.atoms[a.ID] = a
 		d.seen[a.ID] = struct{}{}
 	}
