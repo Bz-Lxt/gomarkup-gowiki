@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"strings"
 	"time"
 
@@ -102,7 +101,7 @@ func (s *AuthService) Parse(token string) (*Claims, error) {
 	parsed, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		return []byte(s.cfg.JWTSecret), nil
 	})
-	if parsed == nil || (err != nil && !errors.Is(err, jwt.ErrTokenExpired)) || (err == nil && !parsed.Valid) {
+	if parsed == nil || err != nil || !parsed.Valid {
 		return nil, apperr.ErrUnauthorized
 	}
 	c, ok := parsed.Claims.(*Claims)
